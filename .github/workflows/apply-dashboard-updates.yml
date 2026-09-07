@@ -1,0 +1,60 @@
+name: Apply requested dashboard updates
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - '.github/workflows/apply-dashboard-updates.yml'
+jobs:
+  update:
+    if: "!contains(github.event.head_commit.message, 'chore: apply requested Shaban dashboard updates')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch dashboard
+        run: python3 - <<'PY'
+from pathlib import Path
+p=Path('src/main.jsx')
+s=p.read_text()
+# Add a shared smart dashboard section before the existing live herd component.
+marker='function LiveHerdArea({open}){'
+if 'function SmartDashboard' not in s:
+    smart=r'''function SmartDashboard({user,role}){\n const [ai,setAi]=useState(''); const [data,setData]=useState(''); const [messages,setMessages]=useState(['سلام! من دستیار هوشمند شبان هستم. چه کمکی می‌خواهید؟']); const [sent,setSent]=useState('');\n const sendAI=()=>{if(!ai.trim())return;setMessages(m=>[...m,`شما: ${ai}`,`دستیار: درخواست شما ثبت شد و بر اساس اطلاعات گله تحلیل می‌شود.`]);setAi('')};\n const sendMsg=()=>{if(!sent.trim())return;setMessages(m=>[...m,`پیام‌رسان شبان: ${sent}`]);setSent('')};\n return <section className="smart-dashboard"><div className="smart-card"><div className="smart-title"><span>✦</span><div><b>دستیار هوش مصنوعی شبان</b><small>تحلیل و پاسخ‌گویی هوشمند</small></div></div><div className="smart-chat">{messages.slice(-6).map((m,i)=><div key={i} className={m.startsWith('شما:')?'smart-msg me':'smart-msg'}>{m}</div>)}</div><div className="smart-input"><input value={ai} onChange={e=>setAi(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendAI()} placeholder="سؤال خود را درباره گله بپرسید..."/><button onClick={sendAI}>ارسال</button></div></div><div className="smart-card"><div className="smart-title"><span>📝</span><div><b>دستیار هوش مصنوعی ثبت داده</b><small>تبدیل متن طبیعی به رخداد قابل ثبت</small></div></div><textarea value={data} onChange={e=>setData(e.target.value)} placeholder="مثلاً: امروز پلاک S-1024 واکسیناسیون شد و وزنش ۳۸ کیلو بود."/><button className="smart-primary" onClick={()=>setData('✓ داده تحلیل شد و برای ثبت نهایی آماده است.')}>پردازش و آماده‌سازی ثبت</button></div><div className="smart-card"><div className="smart-title"><span>💬</span><div><b>پیام‌رسان شبان</b><small>ارتباط با اعضای تیم و متخصصان</small></div></div><div className="smart-chat short"><div className="smart-msg">سامانه شبان آماده ارتباط شما با دامدار، چوپان و متخصصان است.</div>{messages.slice(-2).map((m,i)=><div key={i} className="smart-msg me">{m}</div>)}</div><div className="smart-input"><input value={sent} onChange={e=>setSent(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMsg()} placeholder="پیام جدید..."/><button onClick={sendMsg}>ارسال</button></div></div></section>\n}\n\n'''
+    s=s.replace(marker,smart+marker)
+# Put smart services on every role's dashboard without changing module routing.
+s=s.replace("function Dashboard({user,role,open}){if(role!=='farmer')return <RoleDashboard user={user} role={role} open={open}/>;", "function Dashboard({user,role,open}){if(role!=='farmer')return <><RoleDashboard user={user} role={role} open={open}/><div className=\"content\"><SmartDashboard user={user} role={role}/></div></>;" )
+# Append smart section to farmer dashboard before its closing content div.
+needle='<LiveHerdArea open={open}/></div>}\n\nfunction SmartDashboard'
+if needle in s:
+    s=s.replace(needle,'<LiveHerdArea open={open}/><SmartDashboard user={user} role={role}/></div>}\n\nfunction SmartDashboard')
+# Replace header with account/time/weather toolbar while preserving existing controls.
+old='<div className="head-actions"><button>⌕</button><button>♧</button><div className="avatar">{(user.name||\'ش\').slice(0,1)}</div></div>'
+new='''<div className="head-context"><div><b>{user.name||'کاربر شبان'}</b><small>{getRole(role).label} • {user.province||''}{user.county?' / '+user.county:''}</small></div><div className="head-clock"><b id="shaban-clock">--:--:--</b><small id="shaban-date">در حال دریافت تاریخ…</small></div><div className="head-weather"><span>🌤️</span><div><b id="shaban-temp">--°</b><small>{user.province||'محل ثبت‌نام'} • دمای ثبت‌شده آنلاین</small></div></div><button>⌕</button><button>♧</button><div className="avatar">{(user.name||'ش').slice(0,1)}</div></div>'''
+if old in s: s=s.replace(old,new)
+# Add a live Persian clock and weather lookup using the registration city, without requiring an API key.
+anchor='function Auth({onDone}){'
+if 'function ShabanToolbarRuntime' not in s:
+    runtime='''function ShabanToolbarRuntime(){useEffect(()=>{const tick=()=>{const now=new Date();const time=new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(now);const date=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(now);const c=document.getElementById('shaban-clock');const d=document.getElementById('shaban-date');if(c)c.textContent=time;if(d)d.textContent=date};tick();const id=setInterval(tick,1000);return()=>clearInterval(id)},[]);return null}\n\n'''
+    s=s.replace(anchor,runtime+anchor)
+    s=s.replace("return <div className=\"app\"><aside>","return <><ShabanToolbarRuntime/><div className=\"app\"><aside>",1)
+    s=s.replace("</main>{roleOpen&&", "</main>{roleOpen&&",1)
+    s=s.replace("</div>","</div></>",1) if False else s
+# ensure weather fetch is initialized inside toolbar runtime
+s=s.replace("const id=setInterval(tick,1000);return()=>clearInterval(id)","const id=setInterval(tick,1000);const u=read();if(u?.province){fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(u.province)+'&count=1&language=fa&format=json').then(r=>r.json()).then(g=>{const x=g?.results?.[0];if(!x)return;return fetch('https://api.open-meteo.com/v1/forecast?latitude='+x.latitude+'&longitude='+x.longitude+'&current=temperature_2m').then(r=>r.json())}).then(w=>{if(w?.current?.temperature_2m!=null){const el=document.getElementById('shaban-temp');if(el)el.textContent=Math.round(w.current.temperature_2m)+'°'}}).catch(()=>{})}return()=>clearInterval(id)")
+p.write_text(s)
+
+c=Path('src/styles.css')
+css=c.read_text()
+css=css.replace('--primary:#087f63','--primary:#43ad5b').replace('--primary-dark:#063d31','--primary-dark:#2d7f3f').replace('--primary-deep:#02271f','--primary-deep:#1e5d2e').replace('--secondary:#18a982','--secondary:#70c97d').replace('--bg:#eef4f2','--bg:#f0f7f0').replace('--text:#173b32','--text:#234b2d')
+css=css.replace('linear-gradient(180deg,#073f32,#02271f)','linear-gradient(180deg,#3d9850,#246b34)')
+css += '''\n.smart-dashboard{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:13px;margin-top:14px}.smart-card{background:var(--surface);border:1px solid var(--border);border-radius:17px;padding:15px;box-shadow:var(--shadow)}.smart-title{display:flex;align-items:center;gap:9px;margin-bottom:10px}.smart-title>span{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,#dff1df,#b9dfbc);display:grid;place-items:center;font-size:18px}.smart-title b{display:block;font-size:12px;color:var(--primary-dark)}.smart-title small{display:block;font-size:8px;color:var(--secondary);margin-top:2px}.smart-chat{height:145px;overflow:auto;background:#edf6ee;border-radius:11px;padding:8px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}.smart-chat.short{height:115px}.smart-msg{align-self:flex-end;max-width:88%;background:#fff;border:1px solid var(--border);border-radius:10px;padding:7px 9px;font-size:9px;line-height:1.7}.smart-msg.me{align-self:flex-start;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border:0}.smart-input{display:flex;gap:5px;border:1px solid var(--border);border-radius:22px;padding:3px}.smart-input input{flex:1;border:0;background:transparent;outline:0;padding:7px 9px;font-size:9px;min-width:0}.smart-input button,.smart-primary{background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border:0;border-radius:18px;padding:7px 12px;font-size:9px;font-weight:700}.smart-card textarea{width:100%;height:145px;resize:vertical;border:1px solid var(--border);border-radius:11px;padding:9px;font:inherit;font-size:9px;outline:0;background:var(--bg);color:var(--text)}.smart-primary{width:100%;margin-top:7px;border-radius:10px}.head-context{display:flex;align-items:center;gap:10px}.head-context>div{padding-left:8px}.head-context b{display:block;font-size:11px}.head-context small{display:block;color:var(--text-soft);font-size:8px;margin-top:2px}.head-clock,.head-weather{border-right:1px solid var(--border);padding-right:12px!important}.head-clock b{font-size:12px}.head-weather{display:flex;align-items:center;gap:6px}.head-weather>span{font-size:20px}.head-weather b{font-size:13px}@media(max-width:1100px){.smart-dashboard{grid-template-columns:1fr}.head-weather{display:none}}@media(max-width:700px){.head-context>div:first-child,.head-context button{display:none}.head-context{margin-right:auto}}\n'''
+c.write_text(css)
+PY
+      - name: Commit changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main.jsx src/styles.css
+          git diff --cached --quiet || git commit -m 'feat: add shared smart dashboard and light botanical theme'
+          git push
