@@ -3,11 +3,111 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#063d31" />
+    <meta name="theme-color" content="#48a85b" />
     <title>شبان | سامانه هوشمند مدیریت گله</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <style>
+      /* Dashboard visual system — inspired by professional herd-management dashboards,
+         while keeping Shaban's own information architecture and modules. */
+      header{height:88px;padding:12px 28px;gap:20px}
+      .toolbar-user-info{display:flex;align-items:center;justify-content:flex-start;gap:9px;flex-wrap:wrap}
+      .toolbar-user-info>div:not(.avatar){min-width:92px;padding:7px 11px;background:var(--bg);border:1px solid var(--border);border-radius:12px;text-align:right}
+      .toolbar-user-info b{display:block;font-size:10px;line-height:1.5;color:var(--text)}
+      .toolbar-user-info small{display:block;font-size:8px;color:var(--text-soft);margin-top:2px}
+      .toolbar-user-info .avatar{flex:0 0 auto;width:40px;height:40px;background:#e7f4e8;color:#2f7f42;border:1px solid #cfe7d1}
+
+      .content{padding:24px 28px;max-width:1580px}
+      .hero{padding:4px 2px 8px;margin-bottom:15px}
+      .hero h1{font-size:22px;letter-spacing:-.2px}
+      .hero p{font-size:11px}
+      .hero .primary{box-shadow:0 8px 22px rgba(72,168,91,.18)}
+
+      /* KPI strip */
+      .cards{grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+      .cards .stat{min-height:118px;padding:15px 17px;position:relative;overflow:hidden}
+      .cards .stat:after{content:"";position:absolute;left:-24px;bottom:-30px;width:92px;height:92px;border-radius:50%;background:#48a85b0b}
+      .cards .stat>span{font-size:10px}
+      .cards .stat strong{font-size:28px;margin-top:7px}
+      .cards .stat small{font-size:9px}
+      .cards .stat p{font-size:9px;margin-top:5px}
+
+      /* Main dashboard: analytical area first, action/status cards beside it */
+      .grid{grid-template-columns:1.12fr .88fr;gap:11px;margin-top:11px}
+      .grid .panel{min-height:215px;padding:16px}
+      .panelhead h3,.card h3{font-size:13px}
+      .statusbody{gap:24px;padding-top:10px}
+      .ring{width:105px;height:105px;border-width:10px}
+
+      .suggestion{margin-top:11px;padding:14px 16px;border:1px solid #d9ecd9}
+      .suggestion p{font-size:9px}
+
+      /* Live herd becomes the dashboard's analytical centerpiece. */
+      .live-section{margin-top:13px}
+      .live-section .macro{padding:13px 15px;margin-bottom:9px}
+      .live-section .macro h3{margin-bottom:9px}
+      .mini-stats{gap:6px}
+      .mini-chip{padding:5px 10px;background:#f4faf4}
+      .view-tabs{margin-bottom:9px}
+      .live-grid{grid-template-columns:minmax(0,1.82fr) minmax(300px,.9fr);gap:11px}
+      .live-card{padding:15px}
+      .panorama{height:440px;border-radius:14px;background:linear-gradient(135deg,#fcfffc,#edf7ed)}
+      .panorama:after{content:"تحلیل زنده گله";position:absolute;right:14px;bottom:12px;padding:6px 10px;border-radius:9px;background:#ffffffdd;border:1px solid #dbeadb;color:#2f7f42;font-size:8px;z-index:3;direction:rtl}
+      .side-widgets{gap:9px}
+      .widget-box{padding:11px;border-radius:14px}
+      .widget-head{padding:8px;margin-bottom:7px}
+      .widget-icon{width:34px;height:34px}
+      .chat-container{height:145px}
+      .chat-container.short{height:105px}
+
+      /* Give role dashboards the same command-center language. */
+      .role-dashboard-grid{gap:11px}
+      .role-dashboard-grid .panel{padding:16px}
+
+      /* Dark mode retains the same hierarchy. */
+      :root[data-theme=dark] .toolbar-user-info>div:not(.avatar){background:#162a23;border-color:#29443c}
+      :root[data-theme=dark] .toolbar-user-info .avatar{background:#183329;color:#8dd596;border-color:#315540}
+      :root[data-theme=dark] .panorama:after{background:#12251fe8;border-color:#29443c}
+
+      @media(max-width:1100px){
+        header{height:auto;align-items:flex-start}
+        .toolbar-user-info{justify-content:flex-end}
+        .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+        .live-grid{grid-template-columns:1fr}
+        .side-widgets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+      }
+      @media(max-width:800px){
+        header{padding:11px 14px;display:block}
+        header>div:first-child{margin-bottom:9px}
+        .toolbar-user-info{justify-content:flex-start;gap:5px}
+        .toolbar-user-info>div:not(.avatar){min-width:0;flex:1;padding:6px 8px}
+        .toolbar-user-info b{font-size:9px}
+        .toolbar-user-info small{font-size:7px}
+        .content{padding:16px 14px}
+        .hero{display:block}
+        .hero h1{font-size:18px}
+        .cards{gap:8px}
+        .cards .stat{min-height:105px;padding:12px}
+        .cards .stat strong{font-size:24px}
+        .grid{grid-template-columns:1fr}
+        .side-widgets{grid-template-columns:1fr}
+        .panorama{height:380px}
+      }
+      @media(max-width:520px){
+        .toolbar-user-info>div:not(.avatar){display:none}
+        .toolbar-user-info .avatar{display:grid}
+        .cards{grid-template-columns:1fr 1fr}
+        .cards .stat>span{font-size:9px}
+        .cards .stat strong{font-size:21px}
+        .cards .stat small{font-size:8px}
+        .cards .stat p{font-size:8px}
+        .statusbody{gap:12px}
+        .ring{width:88px;height:88px}
+        .ring strong{font-size:19px}
+        .panorama{height:330px}
+      }
+    </style>
   </body>
 </html>
